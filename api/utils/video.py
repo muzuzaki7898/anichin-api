@@ -1,3 +1,4 @@
+import re
 from .parsing import Parsing
 from urllib.parse import urlparse, urlencode, parse_qsl
 from dotenv import load_dotenv
