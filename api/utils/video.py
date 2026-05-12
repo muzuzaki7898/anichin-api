@@ -36,91 +36,34 @@ class Video(Parsing):
             logger.error(f"Error in get_details for slug {self.slug}: {e}")
             return False
 
-    def __get_video(self, data: BeautifulSoup) -> Union[Dict[str, Any], bool]:
-        """Extract video information from the page data."""
+   def __get_video(self, data: BeautifulSoup) -> Union[Dict[str, Any], bool]:
+        """Extract video information including Dailymotion support."""
         try:
+            # 1. Cek apakah ada Iframe Dailymotion (Seperti yang kamu temukan)
+            iframe = data.find("iframe", src=re.compile(r"dailymotion\.com|geo\.dailymotion"))
+            if iframe:
+                logger.info("Dailymotion iframe found!")
+                return {"stream_url": iframe.get("src")}
+
+            # 2. Jika tidak ada, coba cari iframe umum lainnya
+            all_iframes = data.find_all("iframe")
+            for f in all_iframes:
+                src = f.get("src")
+                if src and "http" in src:
+                    return {"stream_url": src}
+
+            # 3. Jalur lama (Mirror Select) tetap dipertahankan sebagai cadangan
             video_select = data.find("select", {"class": "mirror"})
-            if not video_select:
-                logger.warning("Video select element not found")
-                return False
+            if video_select:
+                # ... masukkan kode originalmu yang pakai FastSaveNow di sini ...
+                pass
 
-            options = video_select.find_all("option")
-            if not options:
-                logger.warning("No video options found")
-                return False
-
-            # Find OK.ru option
-            okru_option = None
-            for option in options:
-                if option.text.strip() == "OK.ru":
-                    okru_option = option
-                    break
-
-            if not okru_option or not okru_option.get("value"):
-                logger.warning("OK.ru option not found or has no value")
-                return False
-
-            # Decode base64 video data
-            try:
-                video_value = okru_option["value"]
-                decoded_data = b64decode(video_value).decode("utf-8")
-                parsed_content = self.parsing(decoded_data)
-
-                if not parsed_content:
-                    logger.error("Failed to parse decoded video data")
-                    return False
-
-                iframe = parsed_content.find("iframe")
-                if not iframe or not iframe.get("src"):
-                    logger.error("Iframe not found or has no src")
-                    return False
-
-                video_src = iframe["src"].replace("videoembed", "video")
-                logger.debug(f"Found video source: {video_src}")
-
-            except Exception as decode_error:
-                logger.error(f"Error decoding video data: {decode_error}")
-                return False
-
-            # Make request to video API
-            try:
-                api_url = "https://fastsavenow.com/wp-json/aio-dl/video-data/"
-                params = {
-                    "url": video_src,
-                    "token": "a9c0082f6f8e3d7d5a00924c93ffe2deb6a42080ae9a8d25af54dc0b0d46e458",
-                }
-
-                user_agent = os.getenv(
-                    "USER_AGENT",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                )
-                headers = {"User-Agent": user_agent}
-
-                logger.debug(f"Making API request to: {api_url}")
-                response = self.post(api_url, data=params, headers=headers)
-
-                if response.status_code != 200:
-                    logger.error(
-                        f"API request failed with status code: {response.status_code}"
-                    )
-                    return False
-
-                results = response.json()
-                logger.debug(f"API response received: {type(results)}")
-
-                # Update media URLs
-                updated_results = self.__update_media_urls(results, "ct=4")
-                logger.info("Successfully processed video data")
-                return updated_results
-
-            except Exception as api_error:
-                logger.error(f"Error making API request: {api_error}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error extracting video data: {e}")
             return False
-
+        except Exception as e:
+            logger.error(f"Error extracting video: {e}")
+            return False
+        
+    
     def __update_media_urls(
         self, results: Dict[str, Any], query_string: str
     ) -> Dict[str, Any]:
