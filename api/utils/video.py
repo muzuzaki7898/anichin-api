@@ -38,30 +38,35 @@ class Video(Parsing):
             return False
 
    def __get_video(self, data: BeautifulSoup) -> Union[Dict[str, Any], bool]:
-        """Extract video information including Dailymotion support."""
+        """Extract video information from the page data."""
         try:
-            # 1. Cek apakah ada Iframe Dailymotion (Seperti yang kamu temukan)
+            # 1. JALUR BARU: Cari Iframe Dailymotion (Seperti temuanmu)
             iframe = data.find("iframe", src=re.compile(r"dailymotion\.com|geo\.dailymotion"))
             if iframe:
-                logger.info("Dailymotion iframe found!")
+                logger.info("Found Dailymotion iframe!")
                 return {"stream_url": iframe.get("src")}
 
-            # 2. Jika tidak ada, coba cari iframe umum lainnya
-            all_iframes = data.find_all("iframe")
-            for f in all_iframes:
-                src = f.get("src")
-                if src and "http" in src:
-                    return {"stream_url": src}
-
-            # 3. Jalur lama (Mirror Select) tetap dipertahankan sebagai cadangan
+            # 2. JALUR CADANGAN: Mirror Select (Kode originalmu)
             video_select = data.find("select", {"class": "mirror"})
             if video_select:
-                # ... masukkan kode originalmu yang pakai FastSaveNow di sini ...
-                pass
+                options = video_select.find_all("option")
+                if options:
+                    # Cari OK.ru seperti di kode lamamu
+                    okru_option = next((opt for opt in options if opt.text.strip() == "OK.ru"), None)
+                    if okru_option and okru_option.get("value"):
+                        # ... logika decoding base64 lamamu ...
+                        video_value = okru_option["value"]
+                        decoded_data = b64decode(video_value).decode("utf-8")
+                        parsed_content = self.parsing(decoded_data)
+                        iframe_ok = parsed_content.find("iframe")
+                        if iframe_ok and iframe_ok.get("src"):
+                            # Jalankan API fastsavenow kamu di sini
+                            return self.__get_api_video(iframe_ok["src"].replace("videoembed", "video"))
 
+            logger.warning("No video source found in any method")
             return False
         except Exception as e:
-            logger.error(f"Error extracting video: {e}")
+            logger.error(f"Error extracting video data: {e}")
             return False
         
     
